@@ -1,0 +1,74 @@
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+*.iml
+
+# Build
+target/
+build/
+dist/
+*.class
+*.jar
+*.war
+
+# Node
+frontend/node_modules/
+frontend/build/
+frontend/dist/
+*.log
+npm-debug.log*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+
+# OS
+.DS_Store
+Thumbs.db
+.env
+.env.local
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+logs/
+*.log
+
+# Docker
+.dockerignore
+docker-compose.override.yml
+
+# Temporary files
+*.tmp
+*.bak
+.cache/
+
+# Spark
+spark-warehouse/
+metastore_db/
+
+# MinIO
+minio-data/
+
+# Test coverage
+coverage/
+.nyc_output/
+
+# IDE specific files
+.project
+.classpath
+.factorypath
+.gradle
+.gradle/
+

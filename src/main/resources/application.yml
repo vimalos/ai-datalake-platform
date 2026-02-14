@@ -1,0 +1,139 @@
+spring:
+  application:
+    name: ai-datalake-platform
+
+  servlet:
+    multipart:
+      max-file-size: 100MB
+      max-request-size: 100MB
+
+server:
+  port: 8080
+  compression:
+    enabled: true
+  # For EC2 deployment with public IP
+  address: 0.0.0.0
+
+# AWS & Spark Configuration
+aws:
+  region: ${AWS_REGION:us-east-1}
+  glue:
+    enabled: ${AWS_GLUE_ENABLED:false}
+    catalog-id: ${AWS_GLUE_CATALOG_ID:}
+  s3:
+    bucket: ${AWS_S3_BUCKET:ai-datalake}
+    warehouse-path: ${AWS_S3_WAREHOUSE_PATH:warehouse}
+    endpoint: ${AWS_S3_ENDPOINT:}  # Leave empty for AWS S3, set for MinIO/local
+    access-key: ${AWS_ACCESS_KEY_ID:}
+    secret-key: ${AWS_SECRET_ACCESS_KEY:}
+    path-style-access: ${AWS_S3_PATH_STYLE:false}
+
+spark:
+  enabled: ${SPARK_ENABLED:true}
+  master: ${SPARK_MASTER:local[*]}
+  # Use AWS Glue or Hive Metastore
+  metastore:
+    type: ${METASTORE_TYPE:glue}  # Options: glue, hive
+    hive-uri: ${HIVE_METASTORE_URI:thrift://localhost:9083}
+  warehouse: ${SPARK_WAREHOUSE:s3a://datalake-416573464914-dev}
+
+# LLM Configuration
+llm:
+  ollama:
+    url: ${OLLAMA_URL:http://localhost:11434}
+    model: ${OLLAMA_MODEL:llama3}
+    embedding-model: ${OLLAMA_EMBEDDING_MODEL:llama3}
+    timeout: 60s
+  claude:
+    api-key: ${ANTHROPIC_API_KEY:}
+    model: claude-sonnet-4-20250514
+    enabled: ${CLAUDE_ENABLED:false}
+  temperature: 0.3
+  timeout:
+    seconds: 120
+
+# RAG Configuration
+rag:
+  knowledge-base:
+    path: src/main/resources/knowledge-base
+  milvus:
+    host: ${MILVUS_HOST:localhost}
+    port: ${MILVUS_PORT:19530}
+    collection: knowledge_base
+    dimension: 4096
+  chunk:
+    size: 500
+    overlap: 100
+  retrieval:
+    top-k: 5
+
+# MCP Configuration
+mcp:
+  # Real MCP Protocol Settings (JSON-RPC 2.0)
+  protocol:
+    use-real: ${MCP_USE_REAL_PROTOCOL:true}  # Use real MCP spec vs custom implementation
+    version: 2024-11-05  # MCP protocol version
+  server:
+    enabled: true
+    name: ai-datalake-mcp-server
+    version: 1.0.0
+  client:
+    enabled: ${MCP_CLIENT_ENABLED:true}
+    name: ai-datalake-client
+    version: 1.0.0
+    # Remote MCP servers to connect to (comma-separated)
+    # Format: name|url or just url
+    remote-servers: ${MCP_REMOTE_SERVERS:}
+    # Local MCP server base URL (for LLM->MCP client flow)
+    local-url: ${MCP_LOCAL_SERVER_URL:http://localhost:8080}
+  llm:
+    # Enable LLM-MCP integration for intelligent tool selection
+    integration:
+      enabled: ${MCP_LLM_INTEGRATION_ENABLED:true}
+    max-tool-calls: ${MCP_MAX_TOOL_CALLS:3}
+  tools:
+    maintenance:
+      auto-compact-threshold-mb: 128
+      snapshot-retention-days: 7
+    optimization:
+      query-timeout-seconds: 300
+
+# Knowledge Services - Local RAG only (no internet search)
+
+# CORS Configuration
+agent:
+  enabled: ${AGENT_ENABLED:true}  # Enable autonomous AI agent
+  max-iterations: ${AGENT_MAX_ITERATIONS:5}  # Max steps in a plan
+  planning:
+    enabled: ${AGENT_PLANNING_ENABLED:true}  # Enable multi-step planning
+  reflection:
+    enabled: ${AGENT_REFLECTION_ENABLED:true}  # Enable result reflection
+
+# CORS Configuration for EC2 public access
+cors:
+  allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:8080}
+  allowed-methods: GET,POST,PUT,DELETE,OPTIONS
+  allowed-headers: "*"
+  allow-credentials: true
+
+# Monitoring
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+# Logging (single consolidated block)
+logging:
+  level:
+    root: INFO
+    com.datalake: INFO
+    org.apache.iceberg: INFO
+    org.apache.spark: INFO
+    dev.langchain4j: INFO
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"

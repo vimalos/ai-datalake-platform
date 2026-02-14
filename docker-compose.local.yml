@@ -1,0 +1,177 @@
+version: '3.8'
+
+# LOCAL DEVELOPMENT - No AWS dependencies
+# This runs everything locally with Hive Metastore + MinIO
+
+services:
+  # PostgreSQL - Backend database for Hive Metastore only
+  # NOTE: This is NOT used by the Spring Boot application
+  # It's only used by the Hive Metastore service to store table metadata
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres-local
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+      POSTGRES_DB: datalake
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - datalake-network
+
+  # MinIO - S3-compatible storage
+  minio:
+    image: minio/minio:latest
+    container_name: minio-local
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - datalake-network
+
+  # Create MinIO bucket
+  minio-init:
+    image: minio/mc:latest
+    container_name: minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      echo '🪣 Creating MinIO bucket...' &&
+      /usr/bin/mc config host add minio http://minio:9000 minioadmin minioadmin &&
+      /usr/bin/mc mb minio/warehouse --ignore-existing &&
+      /usr/bin/mc policy set public minio/warehouse &&
+      echo '✅ MinIO bucket ready!' &&
+      exit 0
+      "
+    networks:
+      - datalake-network
+
+  # Hive Metastore
+  hive-metastore:
+    image: apache/hive:4.0.0
+    container_name: hive-metastore
+    ports:
+      - "9083:9083"
+    environment:
+      SERVICE_NAME: metastore
+      DB_DRIVER: postgres
+      SERVICE_OPTS: "-Djavax.jdo.option.ConnectionDriverName=org.postgresql.Driver 
+                     -Djavax.jdo.option.ConnectionURL=jdbc:postgresql://postgres:5432/datalake
+                     -Djavax.jdo.option.ConnectionUserName=admin
+                     -Djavax.jdo.option.ConnectionPassword=admin"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "9083"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    networks:
+      - datalake-network
+
+  # Ollama - Local LLM
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama-local
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    environment:
+      OLLAMA_HOST: 0.0.0.0:11434
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - datalake-network
+
+  # Initialize Ollama with required models
+  ollama-init:
+    image: curlimages/curl:latest
+    container_name: ollama-init
+    depends_on:
+      ollama:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      echo '🤖 Pulling Ollama models (this may take a while)...' &&
+      curl -X POST http://ollama:11434/api/pull \
+        -H 'Content-Type: application/json' \
+        -d '{\"name\":\"llama3\"}' \
+        --max-time 3600 &&
+      echo '' &&
+      echo '✅ Ollama models ready!' &&
+      sleep 1
+      "
+    networks:
+      - datalake-network
+
+  # Milvus - Vector database (optional for advanced RAG)
+  milvus:
+    image: milvusdb/milvus:latest
+    container_name: milvus-local
+    ports:
+      - "19530:19530"
+      - "9091:9091"
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9000
+    depends_on:
+      - etcd
+      - minio
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - datalake-network
+
+  # Etcd for Milvus
+  etcd:
+    image: quay.io/coreos/etcd:latest
+    container_name: etcd-local
+    environment:
+      ETCD_AUTO_COMPACTION_MODE: revision
+      ETCD_AUTO_COMPACTION_RETENTION: 1000
+      ETCD_QUOTA_BACKEND_BYTES: 4294967296
+    ports:
+      - "2379:2379"
+    networks:
+      - datalake-network
+
+volumes:
+  postgres-data:
+  minio-data:
+  ollama-data:
+
+networks:
+  datalake-network:
+    driver: bridge
+

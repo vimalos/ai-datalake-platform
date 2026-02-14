@@ -1,0 +1,10 @@
+# Attach Policy to Role
+
+aws iam create-policy \
+  --policy-name GlueIcebergDatalakePolicy \
+  --policy-document file:///Users/xxx/workspace/ai-datalake-platform/aws/policy/glue-permissions-policy.json
+
+# Attach to your IAM user (replace YOUR_USERNAME)
+aws iam attach-user-policy \
+  --user-name aws-user-vimal \
+  --policy-arn arn:aws:iam::xxx:policy/GlueIcebergDatalakePolicy
