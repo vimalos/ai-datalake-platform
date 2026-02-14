@@ -33,7 +33,7 @@ public class SparkConfig {
     @Value("${spark.metastore.hive-uri:thrift://localhost:9083}")
     private String hiveMetastoreUri;
 
-    @Value("${spark.warehouse:s3a://datalake-416573464914-dev}")
+    @Value("${spark.warehouse:s3a://datalake-016573464910-dev}")
     private String warehousePath;
 
     @Value("${aws.region:us-east-1}")

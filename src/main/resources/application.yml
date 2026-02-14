@@ -35,7 +35,7 @@ spark:
   metastore:
     type: ${METASTORE_TYPE:glue}  # Options: glue, hive
     hive-uri: ${HIVE_METASTORE_URI:thrift://localhost:9083}
-  warehouse: ${SPARK_WAREHOUSE:s3a://datalake-416573464914-dev}
+  warehouse: ${SPARK_WAREHOUSE:s3a://datalake-016573464910-dev}
 
 # LLM Configuration
 llm:

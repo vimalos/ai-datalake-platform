@@ -118,7 +118,7 @@ public class CreateTableTool extends AbstractMCPTool {
 
     private String buildS3Location(String database, String tableName) {
         // Use spark.warehouse as base and append database/table path
-        // e.g., s3a://datalake-416573464914-dev/analytics/users
+        // e.g., s3a://datalake-016573464910-dev/analytics/users
         String basePath = sparkWarehouse;
         if (basePath == null || basePath.trim().isEmpty()) {
             basePath = "s3a://ai-datalake/warehouse";
