@@ -19,16 +19,36 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * AI Agent - Pure LLM-driven autonomous task planning and execution
+ * Autonomous AI Agent - Core Intelligence Layer of the Platform.
  *
- * This agent operates with ZERO hardcoded logic:
- * - LLM analyzes user queries
- * - LLM creates execution plans
- * - LLM selects appropriate tools
- * - LLM interprets results
- * - LLM generates final responses
+ * This agent implements an LLM-driven autonomous workflow for processing user queries
+ * about the Apache Iceberg data lakehouse. It dynamically plans, executes, and synthesizes
+ * responses without hardcoded business logic.
  *
- * Architecture: User Query → Context Discovery → LLM Planning → Dynamic Execution → LLM Synthesis
+ * Architecture Flow:
+ * 1. UNDERSTAND: Extract entities (database/table) and retrieve relevant domain knowledge via RAG
+ * 2. PLAN: LLM creates multi-step execution plan based on available tools and context
+ * 3. EXECUTE: Dynamically invoke MCP tools (list_databases, query_data, compact_table, etc.)
+ * 4. REFLECT: LLM synthesizes final human-readable response from execution results
+ *
+ * Design Philosophy:
+ * - LLM-driven decision making (no hardcoded if/else logic)
+ * - Dynamic tool selection based on query intent
+ * - Context-aware entity resolution
+ * - RAG-enhanced domain knowledge
+ * - MCP protocol for tool orchestration
+ *
+ * Key Capabilities:
+ * - Discovery queries: "Show databases", "List tables", "Show schema"
+ * - Analysis queries: "How many records?", "Show table stats"
+ * - Action queries: "Compact table", "Expire snapshots", "Create table"
+ * - Knowledge queries: "What is Iceberg?", "How does MCP work?"
+ *
+ * Integration Points:
+ * - LLMService: For intelligent query understanding and planning
+ * - RAGService: For in-house knowledge base retrieval
+ * - MCPToolExecutor: For tool discovery and execution via MCP protocol
+ * - IcebergCatalogService: For metadata discovery (databases, tables)
  */
 @Service
 @RequiredArgsConstructor
@@ -46,7 +66,17 @@ public class AIAgent {
 
 
     /**
-     * Process user query - Intelligent agent with entity extraction
+     * Main entry point for query processing.
+     *
+     * Orchestrates the complete agent workflow:
+     * 1. Entity extraction (database/table from query)
+     * 2. Context discovery (available databases, tools, knowledge)
+     * 3. LLM-based plan creation
+     * 4. Dynamic plan execution
+     * 5. Response synthesis
+     *
+     * @param request User's chat request with query text and optional context hints
+     * @return ChatResponse with formatted answer and execution metadata
      */
     public ChatResponse processQuery(ChatRequest request) {
         log.info("🤖 AI Agent processing query: {}", request.getMessage());
@@ -56,24 +86,18 @@ public class AIAgent {
         try {
             String query = request.getMessage();
 
-            // Step 1: Extract entities from query (database, table, etc.)
-            // Also use hints from request (e.g., from UI context)
             QueryEntities entities = extractEntities(query, request.getDatabase(), request.getTable());
             log.debug("📍 Extracted entities: {}", entities);
 
-            // Step 2: Discover available context
             AgentContext context = discoverContext(query, entities);
             executionTrace.add("🔍 Context: " + context.getDatabases().size() + " databases, " +
                     context.getTools().size() + " tools, " + context.getKnowledge().size() + " docs");
 
-            // Step 3: LLM creates execution plan with entities
             AgentPlan plan = llmCreatePlan(query, context, entities);
             executionTrace.add("📋 LLM Plan: " + plan.getSteps().size() + " steps");
 
-            // Step 4: Execute plan dynamically
             ExecutionResult result = executePlanDynamically(plan, context, entities, executionTrace);
 
-            // Step 5: LLM synthesizes final answer
             String answer = llmSynthesizeAnswer(query, context, result);
             executionTrace.add("✅ LLM generated final answer");
 
@@ -103,8 +127,15 @@ public class AIAgent {
     }
 
     /**
-     * Extract database and table names from query using LLM
-     * Also uses hints from ChatRequest (e.g., from UI storing last queried table)
+     * Extracts database and table names from natural language query using LLM.
+     *
+     * The LLM analyzes the query to identify explicit entity references and uses
+     * context hints from the request (e.g., previous database/table selections).
+     *
+     * @param query Natural language query from user
+     * @param databaseHint Optional database context from previous interaction
+     * @param tableHint Optional table context from previous interaction
+     * @return QueryEntities with extracted database and table names (null if not found)
      */
     private QueryEntities extractEntities(String query, String databaseHint, String tableHint) {
         String prompt = String.format("""

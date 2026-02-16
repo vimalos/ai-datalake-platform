@@ -9,32 +9,26 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 /**
- * AI Orchestration Service - Single Entry Point
+ * Orchestration Service - Entry Point for Query Processing.
  *
- * ARCHITECTURE PRINCIPLE: Single Responsibility
- * - This service is a thin delegation layer only
- * - All query processing is delegated to AIAgent
- * - AIAgent handles: planning, execution, reflection, tool calling
- * - No business logic here - just request validation and delegation
+ * This service acts as a thin delegation layer between the REST API and the AI Agent.
+ * It follows the Single Responsibility Principle by delegating all query processing
+ * logic to the AIAgent, which handles planning, execution, and reflection.
  *
- * FLOW:
- * ChatController → AIOrchestrationService → AIAgent → Response
+ * Architecture Flow:
+ * ChatController → AIOrchestrationService → AIAgent → LLM/RAG/MCP → Response
  *
- * WHY THIS DESIGN:
- * 1. Single path through the system (no multiple code paths)
- * 2. AIAgent is the single source of truth for query processing
- * 3. Easy to test, debug, and maintain
- * 4. Follows Industry Best Practice: Clean Architecture
- * 5. MCP Protocol Server is separate (POST /mcp endpoint)
+ * Design Principles:
+ * - Single path through the system (no branching logic)
+ * - Thin layer with minimal business logic
+ * - AIAgent is the autonomous decision maker
+ * - Clean separation of concerns
  *
- * RESPONSIBILITIES:
- * ✅ Delegate to AIAgent
- * ✅ Error handling
- * ✅ Logging
- * ❌ No business logic
- * ❌ No query processing
- * ❌ No tool selection
- * ❌ No response generation
+ * Responsibilities:
+ * - Request validation
+ * - Error handling
+ * - Logging
+ * - Delegation to AIAgent
  */
 @Service
 @RequiredArgsConstructor
@@ -45,30 +39,28 @@ public class AIOrchestrationService {
     private final AIAgent aiAgent;
 
     /**
-     * Process incoming chat query through AI Agent
+     * Processes user queries through the AI Agent.
      *
-     * This is the SINGLE PATH for all user queries from the UI:
-     * - Knowledge-based queries: "What is Iceberg?"
-     * - Tool-based queries: "List tables in agebergdb"
-     * - Action queries: "Compact the users table"
-     * - Complex queries: Multi-step workflows
+     * The AI Agent autonomously handles:
+     * 1. UNDERSTAND: Uses RAG to retrieve relevant domain knowledge
+     * 2. PLAN: Creates multi-step execution plan based on query intent
+     * 3. EXECUTE: Calls MCP tools (list databases, query data, compact tables, etc.)
+     * 4. REFLECT: Synthesizes final human-readable response
      *
-     * The AIAgent handles all aspects:
-     * 1. UNDERSTAND: Retrieve RAG context for query understanding
-     * 2. PLAN: Create multi-step execution plan using LLM
-     * 3. EXECUTE: Call MCP tools as needed
-     * 4. REFLECT: LLM synthesizes final response
+     * Supported Query Types:
+     * - Discovery: "Show databases", "List tables", "Show schema"
+     * - Analysis: "How many records?", "Show table stats"
+     * - Actions: "Compact users table", "Expire snapshots"
+     * - Knowledge: "What is Iceberg?", "How does compaction work?"
      *
-     * @param request Chat request from user (message, database, table, etc.)
-     * @return Chat response with AI Agent's autonomous response
+     * @param request Contains user's natural language query and optional context
+     * @return ChatResponse with formatted answer and execution metadata
      */
     public ChatResponse processQuery(ChatRequest request) {
         log.info("🔄 Processing user query through AI Agent");
         log.debug("Query: {}", request.getMessage());
 
         try {
-            // SINGLE PATH: Delegate everything to AI Agent
-            // AIAgent is the autonomous brain that handles all query types
             return aiAgent.processQuery(request);
 
         } catch (Exception e) {
@@ -78,10 +70,7 @@ public class AIOrchestrationService {
     }
 
     /**
-     * Get AI Agent instance for direct access if needed
-     * (for internal use only, not part of normal flow)
-     *
-     * @return AI Agent instance
+     * Returns the AI Agent instance for internal access.
      */
     public AIAgent getAIAgent() {
         return aiAgent;

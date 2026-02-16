@@ -15,6 +15,40 @@ import org.springframework.stereotype.Service;
 import java.util.*;
 import java.util.stream.Collectors;
 
+/**
+ * Apache Iceberg Catalog Service.
+ *
+ * This service provides operations for interacting with Apache Iceberg tables through
+ * Apache Spark and AWS Glue Catalog. It enables metadata discovery, schema inspection,
+ * and data querying for Iceberg tables in the data lakehouse.
+ *
+ * Architecture Integration:
+ * - Spark SQL: Query engine for Iceberg operations
+ * - AWS Glue Catalog: Metastore for Iceberg table metadata
+ * - S3: Data storage layer for Iceberg table files
+ * - Iceberg API: Table format operations (snapshots, files, metadata)
+ *
+ * Key Capabilities:
+ * - Database Discovery: List all databases in Glue Catalog
+ * - Table Discovery: List tables within databases
+ * - Schema Inspection: Get table schema and column information
+ * - Data Querying: Execute SQL queries on Iceberg tables
+ * - Metadata Access: Read table properties, snapshots, and file statistics
+ *
+ * Iceberg Table Format:
+ * - Open table format for huge analytic datasets
+ * - ACID transactions with snapshot isolation
+ * - Schema evolution and partition evolution
+ * - Time travel and rollback capabilities
+ * - Hidden partitioning for query optimization
+ *
+ * Usage in MCP Tools:
+ * - list_databases: Discover available databases
+ * - list_tables: List tables in a database
+ * - get_schema: Retrieve table schema
+ * - query_data: Execute SELECT queries
+ * - create_table: Create new Iceberg tables
+ */
 @Service
 @RequiredArgsConstructor
 public class IcebergCatalogService {
@@ -24,6 +58,10 @@ public class IcebergCatalogService {
     private final ObjectProvider<SparkSession> sparkProvider;
     private SparkSession spark;
 
+    /**
+     * Initializes SparkSession on bean creation.
+     * SparkSession is required for all Iceberg catalog operations.
+     */
     @PostConstruct
     public void init() {
         try {
@@ -40,7 +78,11 @@ public class IcebergCatalogService {
     }
 
     /**
-     * List all databases in the catalog
+     * Lists all databases (namespaces) in the Iceberg catalog.
+     *
+     * Uses SHOW DATABASES SQL command to query AWS Glue Catalog.
+     *
+     * @return List of database names
      */
     public List<String> listDatabases() {
         if (spark == null) {
@@ -51,7 +93,6 @@ public class IcebergCatalogService {
         try {
             log.info("📚 Listing databases from Iceberg Catalog...");
 
-            // Use Spark SQL to list databases
             Dataset<Row> databases = spark.sql("SHOW DATABASES");
             List<String> dbList = databases.collectAsList().stream()
                     .map(row -> row.getString(0))
@@ -71,7 +112,10 @@ public class IcebergCatalogService {
     }
 
     /**
-     * List all tables in a specific database
+     * Lists all Iceberg tables in a specific database.
+     *
+     * @param database Database name to query
+     * @return List of table names in the database
      */
     public List<String> listTablesInDatabase(String database) {
         if (spark == null) {
@@ -82,11 +126,10 @@ public class IcebergCatalogService {
         try {
             log.info("📊 Listing tables in database: {}", database);
 
-            // Show tables from the database
             Dataset<Row> tables = spark.sql(String.format("SHOW TABLES IN %s", database));
 
             List<String> tableList = tables.collectAsList().stream()
-                    .map(row -> row.getString(1))  // Column 1 is table name
+                    .map(row -> row.getString(1))
                     .collect(Collectors.toList());
 
             log.info("✅ Found {} tables in database '{}'", tableList.size(), database);

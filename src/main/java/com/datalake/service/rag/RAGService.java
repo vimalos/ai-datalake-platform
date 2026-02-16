@@ -18,6 +18,35 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+/**
+ * Retrieval-Augmented Generation (RAG) Service.
+ *
+ * This service implements RAG to enhance LLM responses with domain-specific knowledge
+ * from the in-house knowledge base. It enables the AI Agent to answer questions about
+ * Apache Iceberg, MCP protocol, data lakehouse best practices, and platform usage.
+ *
+ * RAG Architecture:
+ * 1. INDEXING: Documents are converted to embeddings and stored in vector database
+ * 2. RETRIEVAL: User queries are embedded and matched against document embeddings
+ * 3. AUGMENTATION: Retrieved documents provide context to LLM for response generation
+ *
+ * Key Components:
+ * - RAGEngine: Handles embedding generation and semantic search
+ * - Knowledge Base: Markdown documents in src/main/resources/knowledge-base/
+ * - Embeddings: nomic-embed-text model for document vectorization
+ * - Vector Store: In-memory embedding store for fast similarity search
+ *
+ * Knowledge Base Topics:
+ * - Apache Iceberg fundamentals and table operations
+ * - AWS Glue Catalog integration
+ * - Spark query optimization techniques
+ * - Table maintenance and compaction strategies
+ * - MCP protocol architecture
+ * - Platform usage guidelines
+ *
+ * Usage in AI Agent Flow:
+ * User Query → RAG Retrieval → LLM (Query + Context) → Enhanced Response
+ */
 @Service
 @RequiredArgsConstructor
 public class RAGService {
@@ -31,7 +60,12 @@ public class RAGService {
     private String knowledgeBasePath;
 
     /**
-     * Index documentation into the embedding store via RAGEngine
+     * Indexes a single document into the vector store.
+     *
+     * Documents are split into chunks, embedded, and stored for later retrieval.
+     *
+     * @param documentId Unique identifier for the document
+     * @param content Full text content of the document
      */
     public void indexDocument(String documentId, String content) {
         try {
@@ -43,7 +77,7 @@ public class RAGService {
     }
 
     /**
-     * Index batch of documents via RAGEngine
+     * Indexes multiple documents in batch.
      */
     public void indexDocuments(Map<String, String> documents) {
         documents.forEach(this::indexDocument);
@@ -51,15 +85,20 @@ public class RAGService {
     }
 
     /**
-     * Retrieve relevant documents for a query via RAGEngine
+     * Retrieves semantically relevant documents for a query.
+     *
+     * Uses cosine similarity between query embedding and document embeddings
+     * to find the most relevant knowledge base content.
+     *
+     * @param query User's natural language query
+     * @param maxResults Maximum number of documents to return
+     * @return List of relevant document contents
      */
     public List<String> retrieveRelevantDocuments(String query, int maxResults) {
         try {
-            // Use RAGEngine for semantic search
             var result = ragEngine.query(query);
             log.debug("RAG search result for: {}", query);
 
-            // Extract results from RAGEngine response
             if (result != null && result.containsKey("sources")) {
                 @SuppressWarnings("unchecked")
                 List<String> sources = (List<String>) result.get("sources");
@@ -73,13 +112,15 @@ public class RAGService {
     }
 
     /**
-     * Load knowledge base from markdown files in resources directory
+     * Loads and indexes all knowledge base documents on application startup.
+     *
+     * Scans classpath:knowledge-base/*.md for markdown documents and indexes them
+     * into the vector store for semantic search.
      */
     public void loadDefaultKnowledgeBase() {
         try {
             Map<String, String> docs = new HashMap<>();
 
-            // Load markdown files from classpath
             PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
             Resource[] resources = resolver.getResources("classpath:knowledge-base/*.md");
 
@@ -92,7 +133,6 @@ public class RAGService {
                         continue;
                     }
 
-                    // Read file content
                     String content = new BufferedReader(
                             new InputStreamReader(resource.getInputStream(), StandardCharsets.UTF_8))
                             .lines()

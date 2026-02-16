@@ -8,13 +8,45 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * Spark Configuration with AWS Glue & S3 Integration
- * <p>
- * Supports:
- * - AWS Glue Data Catalog (production)
- * - Hive Metastore (local development)
- * - S3/S3A storage
- * - Apache Iceberg table format
+ * Apache Spark Configuration with AWS Glue Catalog and S3 Integration.
+ *
+ * This configuration class initializes Apache Spark with Iceberg table format support
+ * and integrates with AWS services for production data lakehouse operations.
+ *
+ * Key Features:
+ * - Apache Spark: Distributed query engine for Iceberg operations
+ * - Apache Iceberg: Open table format with ACID transactions
+ * - AWS Glue Catalog: Metastore for table metadata
+ * - S3: Distributed object storage for table data
+ * - Adaptive Query Execution: Runtime query optimization
+ *
+ * Metastore Options:
+ * 1. AWS Glue Data Catalog (Production)
+ *    - Managed metastore service
+ *    - Serverless and scalable
+ *    - Integrated with AWS IAM
+ *
+ * 2. Hive Metastore (Local Development)
+ *    - Self-hosted metastore
+ *    - Docker container deployment
+ *    - Compatible with Glue
+ *
+ * Iceberg Integration:
+ * - spark.sql.extensions: Enables Iceberg SQL syntax
+ * - SparkSessionCatalog: Bridges Spark and Iceberg catalogs
+ * - Supports time travel, schema evolution, partition evolution
+ *
+ * Performance Optimizations:
+ * - Adaptive Query Execution (AQE) for runtime optimization
+ * - Partition coalescing to reduce small files
+ * - Statistics-based query planning
+ *
+ * Configuration Properties:
+ * - spark.enabled: Enable/disable Spark (default: true)
+ * - spark.master: Spark master URL (default: local[*])
+ * - spark.metastore.type: glue or hive (default: glue)
+ * - spark.warehouse: S3 warehouse path
+ * - aws.region: AWS region for Glue and S3
  */
 @Configuration
 public class SparkConfig {
@@ -54,6 +86,14 @@ public class SparkConfig {
     @Value("${aws.s3.path-style-access:false}")
     private boolean s3PathStyleAccess;
 
+    /**
+     * Creates and configures SparkSession bean for Iceberg operations.
+     *
+     * Conditionally created based on spark.enabled property. If disabled,
+     * the application runs in "metadata-only" mode without Spark features.
+     *
+     * @return Configured SparkSession with Iceberg and AWS integration
+     */
     @Bean
     @ConditionalOnProperty(name = "spark.enabled", havingValue = "true", matchIfMissing = true)
     public SparkSession sparkSession() {
@@ -66,16 +106,13 @@ public class SparkConfig {
             SparkSession.Builder builder = SparkSession.builder()
                     .appName("ai-datalake-platform")
                     .master(sparkMaster)
-                    // Iceberg extensions
                     .config("spark.sql.extensions", "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions")
                     .config("spark.sql.catalog.spark_catalog", "org.apache.iceberg.spark.SparkSessionCatalog")
                     .config("spark.sql.catalog.spark_catalog.warehouse", warehousePath)
-                    // Performance
                     .config("spark.sql.adaptive.enabled", "true")
                     .config("spark.sql.adaptive.coalescePartitions.enabled", "true")
                     .config("spark.sql.statistics.histogram.enabled", "true");
 
-            // Configure metastore (Glue or Hive)
             if ("glue".equalsIgnoreCase(metastoreType)) {
                 log.info("   Configuring AWS Glue Data Catalog");
 

@@ -13,15 +13,22 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
 
 /**
- * AI-Driven Data Lakehouse Platform
- * <p>
- * Features:
- * - Apache Iceberg table management
- * - Apache Spark query optimization
- * - LLM-powered chat interface
- * - RAG-based knowledge retrieval
- * - MCP protocol for LLM tool integration
- * - Automated maintenance and troubleshooting
+ * Main Application Entry Point for AI-Powered Data Lakehouse Platform.
+ *
+ * This platform integrates Apache Iceberg, Apache Spark, LLM (Ollama), RAG, and MCP Protocol
+ * to provide an intelligent data lakehouse with natural language query capabilities.
+ *
+ * Architecture Flow:
+ * UI → ChatController → AIAgent → LLM + RAG → MCP Client → MCP Server → Iceberg Tools → AWS Glue Catalog
+ *
+ * Key Components:
+ * - Apache Iceberg: Open table format for large-scale data lakes
+ * - Apache Spark: Distributed query engine for Iceberg operations
+ * - LLM (Ollama): Local language model for natural language understanding
+ * - RAG Engine: Retrieval-Augmented Generation for domain knowledge
+ * - MCP Protocol: Model Context Protocol for tool orchestration
+ * - AWS Glue: Metastore catalog for Iceberg tables
+ * - S3: Data storage layer
  */
 @SpringBootApplication
 @RequiredArgsConstructor
@@ -40,6 +47,10 @@ public class DatalakeApplication {
         SpringApplication.run(DatalakeApplication.class, args);
     }
 
+    /**
+     * Initializes the platform components on application startup.
+     * Loads RAG knowledge base and validates MCP tool registrations.
+     */
     @Bean
     @SuppressWarnings("unused")
     public CommandLineRunner init() {
@@ -50,11 +61,9 @@ public class DatalakeApplication {
                 log.info("Loading RAG knowledge base...");
                 ragService.loadDefaultKnowledgeBase();
 
-                // Exercise MCP tool executor to register tools and log them
                 var tools = mcpToolExecutor.listTools();
                 log.info("MCP tools registered at startup: {}", tools.size());
 
-                // Exercise registry methods to reduce 'never used' warnings
                 var maintenanceTools = toolRegistry.getToolsByCategory("maintenance");
                 log.info("Maintenance tools discovered: {}", maintenanceTools.size());
 

@@ -17,12 +17,28 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * MCP Tool Executor - Simplified tool execution service
+ * MCP Tool Executor - Internal Tool Execution Service.
  *
- * Provides direct tool execution without JSON-RPC protocol overhead.
- * Used by AI Agent and Orchestration Service for internal tool calls.
+ * This service provides direct execution of MCP tools without JSON-RPC protocol overhead.
+ * It serves as the MCP Server's tool execution engine, used internally by the AI Agent
+ * and orchestration layer.
  *
- * For external MCP protocol communication, see MCPProtocolServer.
+ * Architecture Role:
+ * - Acts as the "MCP Server" in the MCP protocol architecture
+ * - Provides tool discovery (listTools) for LLM integration
+ * - Executes tool implementations registered in MCPToolRegistry
+ * - Returns structured MCPResponse objects with execution results
+ *
+ * MCP Protocol Flow:
+ * AI Agent → MCP Client → MCPToolExecutor (Server) → Tool Implementation → Response
+ *
+ * Available Tool Categories:
+ * - catalog: list_databases, list_tables, get_schema, create_table
+ * - query: query_data, insert_rows
+ * - analysis: get_table_stats, suggest_maintenance
+ * - maintenance: compact_table, expire_snapshots, remove_orphan_files, full_maintenance
+ *
+ * For external MCP protocol communication via JSON-RPC, see MCPProtocolServer.
  */
 @Service
 @RequiredArgsConstructor
@@ -33,14 +49,28 @@ public class MCPToolExecutor {
     private final MCPToolRegistry toolRegistry;
 
     /**
-     * List all available tools for LLM
+     * Lists all available MCP tools for LLM consumption.
+     *
+     * The LLM uses this list to understand available capabilities and plan tool invocations.
+     * Each tool includes name, description, category, and input schema.
+     *
+     * @return List of all registered MCP tools
      */
     public List<MCPTool> listTools() {
         return toolRegistry.getAllTools();
     }
 
     /**
-     * Execute a tool requested by LLM
+     * Executes a specific MCP tool with provided arguments.
+     *
+     * This is the core tool execution method that:
+     * 1. Validates tool existence in registry
+     * 2. Retrieves tool implementation
+     * 3. Executes with provided arguments
+     * 4. Returns structured result
+     *
+     * @param request MCPRequest containing tool name and arguments
+     * @return MCPResponse with execution result or error details
      */
     public MCPResponse executeTool(MCPRequest request) {
         log.info("MCP tool execution requested: {}", request.getToolName());
@@ -49,13 +79,11 @@ public class MCPToolExecutor {
         long startTime = System.currentTimeMillis();
 
         try {
-            // Validate tool exists (metadata)
             MCPTool tool = toolRegistry.getTool(request.getToolName())
                     .orElseThrow(() -> new IllegalArgumentException(
                             "Tool not found: " + request.getToolName()
                     ));
 
-            // Get and execute tool implementation directly
             IcebergMaintenanceTool impl = toolRegistry.getImplementation(tool.getName())
                     .orElseThrow(() -> new IllegalArgumentException(
                             "No implementation found for tool: " + request.getToolName()
@@ -81,7 +109,7 @@ public class MCPToolExecutor {
     }
 
     /**
-     * Get tool by name
+     * Retrieves tool metadata by name.
      */
     public Optional<MCPTool> getTool(String name) {
         return toolRegistry.getTool(name);

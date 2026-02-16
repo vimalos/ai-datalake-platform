@@ -18,8 +18,30 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * LLM Service using LangChain4j
- * Supports both local (Ollama) and cloud (Claude API) with RAG
+ * Large Language Model (LLM) Service using LangChain4j Framework.
+ *
+ * This service provides the natural language understanding and generation capabilities
+ * for the AI Data Lakehouse Platform. It integrates with locally-hosted Ollama models
+ * to power the AI Agent's query understanding, planning, and response synthesis.
+ *
+ * Key Responsibilities:
+ * - Natural language query understanding and intent detection
+ * - Dynamic execution plan generation based on available tools
+ * - Entity extraction (database/table names from queries)
+ * - Response synthesis from tool execution results
+ * - Integration with RAG for domain-specific knowledge
+ *
+ * LLM Integration:
+ * - Primary: Ollama (local deployment) with models like llama3, llama3.1
+ * - Fallback: Automatic model selection if configured model is unavailable
+ * - Embeddings: nomic-embed-text for RAG document similarity
+ * - Framework: LangChain4j for unified LLM abstraction
+ *
+ * Configuration:
+ * - llm.ollama.url: Ollama service endpoint (default: http://localhost:11434)
+ * - llm.ollama.model: Preferred model name (e.g., llama3)
+ * - llm.temperature: Creativity parameter (0.0-1.0, default: 0.3 for consistent results)
+ * - llm.timeout.seconds: Maximum generation time (default: 120s)
  */
 @Service
 public class LLMService {
@@ -34,7 +56,6 @@ public class LLMService {
     private final String configuredModel;
     private final double configuredTemperature;
     private final long configuredTimeoutSeconds;
-    // make mutable so we can rebuild with fallback model
     private volatile ChatModel localModel;
 
     public LLMService(
@@ -54,17 +75,19 @@ public class LLMService {
         this.configuredTemperature = temperature;
         this.configuredTimeoutSeconds = timeoutSeconds;
 
-        // Build local Ollama model with fallback logic
         this.localModel = buildOllamaModelWithFallback(this.ollamaBaseUrl, this.configuredModel, temperature, timeoutSeconds);
 
         log.info("LLM Service initialized - Local model: {}, Embeddings: enabled from config",
                 (this.localModel != null ? this.configuredModel : "none"));
     }
 
+    /**
+     * Builds Ollama chat model with automatic fallback to available models.
+     * Queries Ollama API to discover available models and selects the best match.
+     */
     private ChatModel buildOllamaModelWithFallback(String baseUrl, String configuredModel,
                                                    double temperature, long timeoutSeconds) {
         try {
-            // Check available models from Ollama
             List<String> available = fetchAvailableOllamaModels(baseUrl);
             if (available != null && !available.isEmpty()) {
                 log.debug("Available Ollama models: {}", available);
@@ -77,7 +100,6 @@ public class LLMService {
                     return createOllamaChatModel(baseUrl, fallback, temperature, timeoutSeconds);
                 }
             } else {
-                // No list available - try building with configured model
                 if (configuredModel != null && !configuredModel.isEmpty()) {
                     log.info("ℹ️ Could not fetch model list from Ollama; using configured model '{}'. Ollama may still initialize the model on first use.", configuredModel);
                     return createOllamaChatModel(baseUrl, configuredModel, temperature, timeoutSeconds);
@@ -89,7 +111,6 @@ public class LLMService {
         } catch (Exception e) {
             log.error("❌ Failed to initialize Ollama model ({}). Model may not be available or Ollama is unreachable at {}. Error: {}",
                     configuredModel, baseUrl, e.getMessage());
-            // last attempt: try configured model - may throw later
             try {
                 if (configuredModel != null && !configuredModel.isEmpty()) {
                     log.info("Attempting final fallback to configured model: {}", configuredModel);

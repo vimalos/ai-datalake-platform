@@ -15,18 +15,66 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Apache Iceberg Table Maintenance Service.
+ *
+ * This service provides automated maintenance operations for Iceberg tables to optimize
+ * performance, reduce storage costs, and maintain table health over time.
+ *
+ * Core Maintenance Operations:
+ *
+ * 1. TABLE COMPACTION
+ *    - Merges small files into larger, optimally-sized files
+ *    - Reduces query planning overhead
+ *    - Improves scan performance
+ *    - Target file size: 512MB - 1GB
+ *
+ * 2. SNAPSHOT EXPIRATION
+ *    - Removes old snapshots beyond retention period
+ *    - Frees up metadata storage
+ *    - Default retention: 7 days
+ *    - Maintains time-travel capability within retention window
+ *
+ * 3. ORPHAN FILE REMOVAL
+ *    - Identifies and deletes unreferenced data files
+ *    - Reclaims storage from failed writes or aborted transactions
+ *    - Safe operation that preserves data integrity
+ *
+ * 4. TABLE STATISTICS
+ *    - Collects file count, size, snapshot count
+ *    - Provides health indicators (small file ratio, growth rate)
+ *    - Suggests maintenance actions based on heuristics
+ *
+ * Why Maintenance Matters:
+ * - Small files degrade query performance (increased planning time)
+ * - Old snapshots consume storage unnecessarily
+ * - Orphan files waste S3 storage costs
+ * - Regular maintenance keeps tables performant and cost-effective
+ *
+ * Integration with MCP Tools:
+ * - compact_table: Triggers file compaction
+ * - expire_snapshots: Cleans up old snapshots
+ * - remove_orphan_files: Reclaims orphaned storage
+ * - get_table_stats: Health check and diagnostics
+ * - suggest_maintenance: AI-powered maintenance recommendations
+ *
+ * Spark Integration:
+ * - Uses Spark SQL procedures for maintenance operations
+ * - Gracefully degrades if Spark is unavailable
+ */
 @Service
 @RequiredArgsConstructor
 public class MaintenanceService {
 
     private static final Logger log = LoggerFactory.getLogger(MaintenanceService.class);
 
-    // Optional SparkSession provider
     private final ObjectProvider<SparkSession> sparkProvider;
-
-    // Spark session (loaded lazily)
     private SparkSession spark;
 
+    /**
+     * Initializes SparkSession for maintenance operations.
+     * Operations gracefully degrade if Spark is unavailable.
+     */
     @PostConstruct
     public void init() {
         try {
@@ -42,10 +90,16 @@ public class MaintenanceService {
         }
     }
 
+    /**
+     * Checks if Spark is available for maintenance operations.
+     */
     private boolean isSparkAvailable() {
         return this.spark != null;
     }
 
+    /**
+     * Returns a standard "disabled" result when Spark is unavailable.
+     */
     private Map<String, Object> disabledResult(String action) {
         Map<String, Object> result = new HashMap<>();
         result.put("status", "disabled");
@@ -55,6 +109,10 @@ public class MaintenanceService {
         return result;
     }
 
+    /**
+     * Captures a snapshot of table statistics before/after maintenance operations.
+     * Used to measure the impact of maintenance activities.
+     */
     private Map<String, Object> getTableStatsSnapshot(String database, String table) {
         Map<String, Object> stats = new HashMap<>();
         stats.put("database", database);
